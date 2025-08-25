@@ -31,6 +31,7 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
   const [advice, setAdvice] = useState<StyleAdvice | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,8 +53,6 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = () => {
-            // result is "data:mime/type;base64,the-base64-string"
-            // we only want "the-base64-string"
             const result = (reader.result as string).split(',')[1];
             resolve(result);
         };
@@ -77,6 +76,13 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
     }
   };
 
+  const resetSelection = () => {
+      setImagePreview(null);
+      setImageFile(null);
+      setAdvice(null);
+      setError(null);
+  }
+
   return (
     <div className="space-y-8">
         <div>
@@ -93,14 +99,17 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
                     ref={fileInputRef}
                     className="hidden"
                 />
+                
                 {!imagePreview && (
                      <div className="w-full border-2 border-dashed border-gray-600 rounded-lg p-12 text-center">
                         <ShirtIcon className="mx-auto h-12 w-12 text-gray-500" />
                         <h3 className="mt-2 text-lg font-medium text-white">Upload a photo</h3>
                         <p className="mt-1 text-sm text-gray-400">For best results, use a full-body photo with good lighting.</p>
-                        <Button onClick={() => fileInputRef.current?.click()} className="mt-4">
-                            Select Image
-                        </Button>
+                        <div className="flex justify-center mt-4">
+                            <Button onClick={() => fileInputRef.current?.click()}>
+                                Select Image
+                            </Button>
+                        </div>
                     </div>
                 )}
                
@@ -108,7 +117,7 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
                     <div className="w-full flex flex-col items-center">
                         <img src={imagePreview} alt="User preview" className="max-h-80 w-auto rounded-lg shadow-lg mb-6" />
                         <div className="flex gap-4">
-                            <Button onClick={() => fileInputRef.current?.click()} variant="secondary">Change Photo</Button>
+                            <Button onClick={resetSelection} variant="secondary">Change Photo</Button>
                             <Button onClick={handleGetAdvice} disabled={isLoading}>
                                 {isLoading ? 'Analyzing...' : 'Get Style Advice'}
                             </Button>
@@ -120,12 +129,12 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
         
         {error && (
             <Card className="border-red-500 bg-red-900/20 text-red-300">
-                <h3 className="font-bold text-lg">Analysis Failed</h3>
+                <h3 className="font-bold text-lg">Oops! Something went wrong.</h3>
                 <p>{error}</p>
             </Card>
         )}
         
-        {isLoading && (
+        {isLoading && !advice && (
             <Card className="animate-pulse space-y-6">
                  {[...Array(3)].map((_, i) => (
                     <div key={i}>

@@ -24,6 +24,7 @@ const MealScanner: React.FC = () => {
     const [analysis, setAnalysis] = useState<MealAnalysis | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,6 +39,13 @@ const MealScanner: React.FC = () => {
             setAnalysis(null);
             setError(null);
         }
+    };
+    
+    const resetSelection = () => {
+      setImagePreview(null);
+      setImageFile(null);
+      setAnalysis(null);
+      setError(null);
     };
 
     const handleAnalyzeMeal = async () => {
@@ -101,19 +109,21 @@ const MealScanner: React.FC = () => {
                     <input
                         type="file"
                         accept="image/*"
-                        capture="environment"
                         onChange={handleImageChange}
                         ref={fileInputRef}
                         className="hidden"
                     />
+                    
                     {!imagePreview && (
                         <div className="w-full border-2 border-dashed border-gray-600 rounded-lg p-12 text-center">
                             <ScanLineIcon className="mx-auto h-12 w-12 text-gray-500" />
-                            <h3 className="mt-2 text-lg font-medium text-white">Upload or take a photo</h3>
+                            <h3 className="mt-2 text-lg font-medium text-white">Upload a photo of your meal</h3>
                             <p className="mt-1 text-sm text-gray-400">For best results, capture the entire meal clearly.</p>
-                            <Button onClick={() => fileInputRef.current?.click()} className="mt-4">
-                                Select Image
-                            </Button>
+                             <div className="flex justify-center mt-4">
+                                <Button onClick={() => fileInputRef.current?.click()}>
+                                    Select Image
+                                </Button>
+                            </div>
                         </div>
                     )}
 
@@ -121,7 +131,7 @@ const MealScanner: React.FC = () => {
                         <div className="w-full flex flex-col items-center">
                             <img src={imagePreview} alt="Meal preview" className="max-h-80 w-auto rounded-lg shadow-lg mb-6" />
                             <div className="flex gap-4">
-                                <Button onClick={() => fileInputRef.current?.click()} variant="secondary">Change Photo</Button>
+                                <Button onClick={resetSelection} variant="secondary">Change Photo</Button>
                                 <Button onClick={handleAnalyzeMeal} disabled={isLoading}>
                                     {isLoading ? 'Analyzing Meal...' : 'Analyze Meal'}
                                 </Button>
@@ -138,7 +148,7 @@ const MealScanner: React.FC = () => {
                 </Card>
             )}
 
-            {isLoading && (
+            {isLoading && !analysis && (
                 <Card className="animate-pulse">
                     <div className="h-6 w-1/3 bg-gray-700 rounded mb-6"></div>
                     <div className="space-y-4">

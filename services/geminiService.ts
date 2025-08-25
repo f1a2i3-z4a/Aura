@@ -1,56 +1,98 @@
+
 import { GoogleGenAI, Type, Chat, GenerateContentResponse } from "@google/genai";
 import { DietPlan, StyleAdvice, WorkoutPlan, Goal, Gender, GamificationStats, Habit, DailyVibe, UserProfile, ChatMessage } from '../types';
 
-// IMPORTANT: This key is now a placeholder and NOT used.
-// The real key is stored securely in the Cloud Function environment.
-const API_KEY = "firebase-function-proxy"; 
-if (!API_KEY) {
+if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Schemas are now defined on the backend. We send their names.
-const dietPlanSchema = { responseSchemaName: 'dietPlanSchema' };
-const workoutPlanSchema = { responseSchemaName: 'workoutPlanSchema' };
-const styleAdviceSchema = { responseSchemaName: 'styleAdviceSchema' };
-const foodListSchema = { responseSchemaName: 'foodListSchema' };
+// Schemas for Gemini API
+const macronutrientSchema = {
+    type: Type.OBJECT,
+    properties: {
+        protein: { type: Type.STRING, description: "Grams of protein, e.g., '30g'" },
+        carbs: { type: Type.STRING, description: "Grams of carbohydrates, e.g., '50g'" },
+        fat: { type: Type.STRING, description: "Grams of fat, e.g., '15g'" },
+    },
+    required: ["protein", "carbs", "fat"],
+};
 
-// This will be your function URL after deployment.
-// For local testing, you'll use a local emulator URL like http://127.0.0.1:5001/aura-app/us-central1/callGemini
-// Replace 'YOUR_PROJECT_ID' with your actual Firebase project ID.
-const GEMINI_API_PROXY = "https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/callGemini";
-const GEMINI_IMAGE_PROXY = "https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/callGeminiImages";
+const mealSchema = {
+    type: Type.OBJECT,
+    properties: {
+        name: { type: Type.STRING },
+        description: { type: Type.STRING },
+        calories: { type: Type.STRING, description: "e.g., '450 kcal'" },
+        macros: macronutrientSchema,
+    },
+    required: ["name", "description", "calories", "macros"],
+};
 
+const dietPlanSchema = {
+    type: Type.OBJECT,
+    properties: {
+        breakfast: mealSchema,
+        lunch: mealSchema,
+        dinner: mealSchema,
+        snack: mealSchema,
+        totalCalories: { type: Type.STRING, description: "e.g., '2000 kcal'" },
+        totalMacros: macronutrientSchema,
+    },
+    required: ["breakfast", "lunch", "dinner", "snack", "totalCalories", "totalMacros"],
+};
 
-async function callApiProxy(body: object): Promise<GenerateContentResponse> {
-    const response = await fetch(GEMINI_API_PROXY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-        throw new Error(`API proxy failed with status ${response.status}`);
-    }
-    return await response.json();
-}
+const exerciseSchema = {
+    type: Type.OBJECT,
+    properties: {
+        name: { type: Type.STRING },
+        sets: { type: Type.STRING },
+        reps: { type: Type.STRING },
+        rest: { type: Type.STRING },
+        description: { type: Type.STRING },
+    },
+    required: ["name", "sets", "reps", "rest", "description"],
+};
 
-async function callImageProxy(body: object): Promise<any> {
-     const response = await fetch(GEMINI_IMAGE_PROXY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-        throw new Error(`Image API proxy failed with status ${response.status}`);
-    }
-    return await response.json();
-}
+const workoutPlanSchema = {
+    type: Type.OBJECT,
+    properties: {
+        title: { type: Type.STRING },
+        focus: { type: Type.STRING },
+        exercises: {
+            type: Type.ARRAY,
+            items: exerciseSchema,
+        },
+    },
+    required: ["title", "focus", "exercises"],
+};
+
+const styleAdviceSchema = {
+    type: Type.OBJECT,
+    properties: {
+        dressingStyle: { type: Type.STRING },
+        hairstyle: { type: Type.STRING },
+        beardStyle: { type: Type.STRING, description: "Provide this only for males. If not applicable, omit this field." },
+    },
+    required: ["dressingStyle", "hairstyle"],
+};
+
+const foodListSchema = {
+    type: Type.OBJECT,
+    properties: {
+        foods: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+        },
+    },
+    required: ["foods"],
+};
 
 const generateImageForPrompt = async (prompt: string): Promise<string | undefined> => {
     try {
         console.log(`Generating image for prompt: "${prompt}"`);
-        const response = await callImageProxy({
+        const response = await ai.models.generateImages({
             model: 'imagen-3.0-generate-002',
             prompt: prompt,
             config: {
@@ -80,12 +122,12 @@ export const generateDietPlan = async (goal: Goal, gender: Gender, age: number, 
     }
     prompt += ` Include a delicious and healthy breakfast, lunch, dinner, and a snack. For each meal and for the total day, provide estimated calories and macronutrient breakdown (protein, carbs, fat).`;
       
-    const response = await callApiProxy({
+    const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        ...dietPlanSchema
+        responseSchema: dietPlanSchema
       },
     });
 
@@ -125,12 +167,12 @@ export const generateWorkoutPlan = async (goal: Goal, gender: Gender, age: numbe
         }
         prompt += ` The plan should be appropriate for their age. It should include a title, the main focus, and a list of 5-7 exercises. For each exercise, specify the name, number of sets, number of reps, rest time, and a brief description or tip.`;
 
-        const response = await callApiProxy({
+        const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                ...workoutPlanSchema
+                responseSchema: workoutPlanSchema
             },
         });
         const jsonText = response.text.trim();
@@ -153,12 +195,12 @@ export const generateStyleAdvice = async (base64Image: string, mimeType: string,
             text: `I am a ${age}-year-old ${gender} with a health goal of ${goal}. Based on the attached photo, analyze my body type and face shape. Provide personalized suggestions for: 1. Dressing styles and outfits that would be flattering. 2. A suitable hairstyle. 3. (If male) A suitable beard style. Keep the suggestions concise and actionable.`
         };
 
-        const response = await callApiProxy({
+        const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: { parts: [imagePart, textPart] },
             config: {
                 responseMimeType: "application/json",
-                ...styleAdviceSchema
+                responseSchema: styleAdviceSchema
             },
         });
 
@@ -215,7 +257,7 @@ export const generateMotivationalMessage = async (stats: GamificationStats, habi
         - If their vibe is low (poor sleep, low energy), be extra supportive and gentle.
         - If their vibe is high, be more energetic and challenging.`;
 
-        const response = await callApiProxy({
+        const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
         });
@@ -239,12 +281,12 @@ export const analyzeImageForFoodNames = async (base64Image: string, mimeType: st
             text: "Analyze the food items in this image. List all the distinct food items you can identify. For example: 'chicken breast', 'broccoli florets', 'white rice'."
         };
 
-        const response = await callApiProxy({
+        const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: { parts: [imagePart, textPart] },
             config: {
                 responseMimeType: "application/json",
-                ...foodListSchema
+                responseSchema: foodListSchema
             },
         });
         
@@ -258,9 +300,6 @@ export const analyzeImageForFoodNames = async (base64Image: string, mimeType: st
     }
 };
 
-// Chat doesn't use the proxy, as the SDK's chat history management is complex to replicate.
-// For simplicity, we'll continue using the client-side SDK for chat, accepting the risk for this single feature
-// or acknowledging it would need a more complex backend (like Firestore chat history) for full security.
 export const continueChat = async (userProfile: UserProfile, history: ChatMessage[], newMessage: string): Promise<string> => {
     try {
         const chat: Chat = ai.chats.create({
