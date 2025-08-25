@@ -1,0 +1,7 @@
+{
+  "name": "Aura: Your AI Lifestyle Coach",
+  "description": "A gamified personal assistant to help you build healthy habits, track fitness, plan diets, and improve your style. Aura acts as your personal trainer, diet planner, and fashion stylist, all in one.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
