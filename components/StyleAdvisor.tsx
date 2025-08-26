@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { UserProfile, StyleAdvice, Gender } from '../types';
 import { generateStyleAdvice } from '../services/geminiService';
 import Card from './shared/Card';
 import Button from './shared/Button';
-import { ShirtIcon, CameraIcon } from './shared/icons';
+import { ShirtIcon } from './shared/icons';
 
 interface StyleAdvisorProps {
   userProfile: UserProfile;
@@ -31,20 +31,8 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
   const [advice, setAdvice] = useState<StyleAdvice | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  useEffect(() => {
-    // Cleanup stream on component unmount
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -72,62 +60,6 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
     });
   }
 
-  const dataURLtoFile = (dataurl: string, filename: string): File | null => {
-    const arr = dataurl.split(',');
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    if (!mimeMatch) return null;
-    const mime = mimeMatch[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new File([u8arr], filename, { type: mime });
-  }
-
-  const handleOpenCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setIsCameraOpen(true);
-        setError(null);
-      }
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      setError("Could not access the camera. Please ensure you have granted permission.");
-    }
-  };
-
-  const handleCloseCamera = () => {
-      if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      setIsCameraOpen(false);
-  };
-
-  const handleTakePhoto = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg');
-        setImagePreview(dataUrl);
-        const file = dataURLtoFile(dataUrl, 'capture.jpg');
-        if (file) {
-          setImageFile(file);
-        }
-      }
-      handleCloseCamera();
-    }
-  };
-
-
   const handleGetAdvice = async () => {
     if (!imageFile || !userProfile.goal) return;
     setIsLoading(true);
@@ -149,7 +81,6 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
       setImageFile(null);
       setAdvice(null);
       setError(null);
-      handleCloseCamera();
   }
 
   return (
@@ -169,15 +100,7 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
                     className="hidden"
                 />
                 
-                {isCameraOpen ? (
-                    <div className="w-full flex flex-col items-center">
-                        <video ref={videoRef} autoPlay playsInline className="w-full max-h-80 rounded-lg mb-4 bg-gray-900" />
-                        <div className="flex gap-4">
-                            <Button onClick={handleCloseCamera} variant="secondary">Cancel</Button>
-                            <Button onClick={handleTakePhoto}>Take Photo</Button>
-                        </div>
-                    </div>
-                ) : imagePreview ? (
+                {imagePreview ? (
                      <div className="w-full flex flex-col items-center">
                         <img src={imagePreview} alt="User preview" className="max-h-80 w-auto rounded-lg shadow-lg mb-6" />
                         <div className="flex gap-4">
@@ -191,13 +114,10 @@ const StyleAdvisor: React.FC<StyleAdvisorProps> = ({ userProfile }) => {
                      <div className="w-full border-2 border-dashed border-gray-600 rounded-lg p-12 text-center">
                         <ShirtIcon className="mx-auto h-12 w-12 text-gray-500" />
                         <h3 className="mt-2 text-lg font-medium text-white">Upload a photo</h3>
-                        <p className="mt-1 text-sm text-gray-400">For best results, use a full-body photo or use your camera.</p>
+                        <p className="mt-1 text-sm text-gray-400">For best results, use a full-body photo.</p>
                         <div className="flex justify-center items-center mt-4 gap-4 flex-wrap">
                             <Button onClick={() => fileInputRef.current?.click()}>
                                 Select Image
-                            </Button>
-                            <Button onClick={handleOpenCamera} variant="secondary" className="flex items-center gap-2">
-                                <CameraIcon className="w-5 h-5" /> Use Camera
                             </Button>
                         </div>
                     </div>
